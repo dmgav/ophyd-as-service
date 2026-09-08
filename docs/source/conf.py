@@ -137,7 +137,7 @@ html_sidebars = {
 # -- Options for HTMLHelp output ------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'bluesky-httpserver'
+htmlhelp_basename = 'ophyd-as-service'
 
 
 # -- Options for LaTeX output ---------------------------------------------

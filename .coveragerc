@@ -1,6 +1,6 @@
 [run]
 source =
-    bluesky_httpserver
+    ophyd_as_service
 [report]
 omit =
     */python?.?/*

@@ -13,7 +13,7 @@ Types of Contributions
 Report Bugs
 ~~~~~~~~~~~
 
-Report bugs at https://github.com/dmgav/bluesky-httpserver/issues.
+Report bugs at https://github.com/dmgav/ophyd-as-service/issues.
 
 If you are reporting a bug, please include:
 
@@ -35,14 +35,14 @@ is open to whoever wants to implement it.
 Write Documentation
 ~~~~~~~~~~~~~~~~~~~
 
-Bluesky HTTP Server could always use more documentation, whether
-as part of the official Bluesky HTTP Server docs, in docstrings,
+Ophyd-as-Service could always use more documentation, whether
+as part of the official Ophyd-as-Service docs, in docstrings,
 or even on the web in blog posts, articles, and such.
 
 Submit Feedback
 ~~~~~~~~~~~~~~~
 
-The best way to send feedback is to file an issue at https://github.com/dmgav/bluesky-httpserver/issues.
+The best way to send feedback is to file an issue at https://github.com/dmgav/ophyd-as-service/issues.
 
 If you are proposing a feature:
 
@@ -54,17 +54,17 @@ If you are proposing a feature:
 Get Started!
 ------------
 
-Ready to contribute? Here's how to set up `bluesky-httpserver` for local development.
+Ready to contribute? Here's how to set up `ophyd-as-service` for local development.
 
-1. Fork the `bluesky-httpserver` repo on GitHub.
+1. Fork the `ophyd-as-service` repo on GitHub.
 2. Clone your fork locally::
 
-    $ git clone git@github.com:your_name_here/bluesky-httpserver.git
+    $ git clone git@github.com:your_name_here/ophyd-as-service.git
 
 3. Install your local copy into a virtualenv. Assuming you have virtualenvwrapper installed, this is how you set up your fork for local development::
 
-    $ mkvirtualenv bluesky-httpserver
-    $ cd bluesky-httpserver/
+    $ mkvirtualenv ophyd-as-service
+    $ cd ophyd-as-service/
     $ python setup.py develop
 
 4. Create a branch for local development::
@@ -75,7 +75,7 @@ Ready to contribute? Here's how to set up `bluesky-httpserver` for local develop
 
 5. When you're done making changes, check that your changes pass flake8 and the tests, including testing other Python versions with tox::
 
-    $ flake8 bluesky_httpserver tests
+    $ flake8 ophyd_as_service tests
     $ python setup.py test
     $ tox
 
@@ -99,5 +99,5 @@ Before you submit a pull request, check that it meets these guidelines:
    your new functionality into a function with a docstring, and add the
    feature to the list in README.rst.
 3. The pull request should work for Python 2.7, 3.3, 3.4, 3.5 and for PyPy. Check
-   https://travis-ci.org/dmgav/bluesky-httpserver/pull_requests
+   https://travis-ci.org/dmgav/ophyd-as-aservice/pull_requests
    and make sure that the tests pass for all supported Python versions.
