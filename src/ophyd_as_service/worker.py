@@ -9,33 +9,21 @@ import re
 import sys
 import threading
 import time as ttime
-import traceback
-import uuid
 from multiprocessing import Process
 from threading import Thread
 
-from .comms import PipeJsonRpcReceive
-from .config import profile_name_to_startup_dir
-from .logging_setup import PPrintForLogging as ppfl
-from .logging_setup import setup_loggers
-from .output_streaming import setup_console_output_redirection
-from .profile_ops import (
-    compare_existing_plans_and_devices,
+from bluesky_queueserver.manager.comms import PipeJsonRpcReceive
+from bluesky_queueserver.manager.logging_setup import PPrintForLogging as ppfl
+from bluesky_queueserver.manager.logging_setup import setup_loggers
+from bluesky_queueserver.manager.output_streaming import setup_console_output_redirection
+from bluesky_queueserver.manager.profile_ops import (
     existing_plans_and_devices_from_nspace,
-    extract_script_root_path,
     load_allowed_plans_and_devices,
-    load_script_into_existing_nspace,
     load_worker_startup_code,
-    prepare_function,
-    prepare_plan,
     update_existing_plans_and_devices,
 )
-from .utils import filter_dict_by_permitted_keys
 
 logger = logging.getLogger(__name__)
-
-# Change the variable to change the default behavior
-DEFAULT_RUN_FOREGROUND_TASKS_IN_SEPARATE_THREADS = False
 
 
 # State of the worker environment
@@ -55,12 +43,10 @@ class IPKernelState(enum.Enum):
     STARTING = "starting"
 
 
-class RejectedError(RuntimeError): ...
-
-
 class RunEngineWorker(Process):
     """
-    The class implementing Run Engine Worker thread.
+    The class implementing the worker process. The worker loads the startup code and reports
+    the lists of existing and allowed devices. It does not execute plans, functions or scripts.
 
     Parameters
     ----------
@@ -93,14 +79,11 @@ class RunEngineWorker(Process):
         # The end of bidirectional Pipe assigned to the worker (for communication with Manager process)
         self._conn = conn
 
-        self._exit_main_loop_event = None  # Used with IPython kernel
         self._exit_event = None
         self._exit_confirmed_event = None
 
         # The following variable determine the state of RE Worker
         self._env_state = EState.CLOSED
-
-        self._background_tasks_num = 0  # The number of background tasks
 
         # Class that supports communication over the pipe
         self._comm_to_manager = None
@@ -142,10 +125,7 @@ class RunEngineWorker(Process):
         # The event is used to monitor shutdown of IPython kernel.
         self._ip_kernel_is_shut_down_event = None
 
-        # Timeout after which the reserved kernel is released unless a plan or a task is started
-        self._ip_kernel_reserve_timeout = 2.0
-        # Time when reservation will expire
-        self._ip_kernel_reserve_expire_at = 0
+        self._loop = None  # Event loop used by the worker
 
         self._re_namespace, self._devices_in_nspace = {}, {}
 
@@ -154,22 +134,11 @@ class RunEngineWorker(Process):
 
         self._success_startup = True  # Indicates if worker startup is proceding successfully
 
-    @property
-    def re_state(self):
+    def _generate_list_of_allowed_devices(self):
         """
-        Returns RE state if possible (RE is a RunEngine object), otherwise returns ``None``.
+        Generate the list of allowed devices based on the existing devices and user permissions.
         """
-        try:
-            state = str(self._RE.state)
-        except Exception:
-            state = None
-        return state
-
-    def _generate_lists_of_allowed_plans_and_devices(self):
-        """
-        Generate lists of allowed plans and devices based on the existing plans and devices and user permissions.
-        """
-        logger.info("Generating lists of allowed plans and devices")
+        logger.info("Generating the list of allowed devices")
 
         with self._existing_items_lock:
             existing_devices = self._existing_devices
@@ -183,8 +152,24 @@ class RunEngineWorker(Process):
         with self._allowed_items_lock:
             self._allowed_devices = allowed_devices
 
-        logger.info("List of allowed plans and devices was successfully generated")
+        logger.info("List of allowed devices was successfully generated")
 
+    def _update_existing_pd_file(self, *, options):
+        """
+        Update the list of existing devices on disk. ``options`` parameter is a list (or tuple)
+        of options which are compared to ``self._update_existing_plans_devices_on_disk`` to
+        determine if the list should be saved.
+        """
+        path_pd = self._config_dict["existing_plans_and_devices_path"]
+
+        if self._update_existing_plans_devices_on_disk in options:
+            with self._existing_items_lock:
+                existing_devices = self._existing_devices
+            update_existing_plans_and_devices(
+                path_to_file=path_pd,
+                existing_plans={},
+                existing_devices=existing_devices,
+            )
 
     # =============================================================================
     #               Handlers for messages from RE Manager
@@ -237,19 +222,12 @@ class RunEngineWorker(Process):
         """
         # Stop the loop in main thread
         logger.info("Closing RE Worker environment ...")
-        # TODO: probably the criteria on when the environment could be more precise.
-        #       For now simply assume that we can not close the environment in which
-        #       Run Engine is running using this method. Different method that kills
-        #       the worker process is needed.
         err_msg = None
 
         if self._ip_kernel_state == IPKernelState.BUSY:
             # The condition for IP Kernel 'busy' state accounts for the case when IP is not used.
             status = "rejected"
             err_msg = "IPython kernel is busy and can not be stopped."
-        elif self.re_state == "running":
-            status = "rejected"
-            err_msg = "Run Engine is executing a plan.Stop the running plan and try again."
         else:
             try:
                 if self._use_ipython_kernel:
@@ -289,54 +267,34 @@ class RunEngineWorker(Process):
 
     def _command_permissions_reload_handler(self, user_group_permissions):
         """
-        Initiate reloading of permissions and computing new lists of existing plans and devices.
+        Initiate reloading of permissions and computing the new list of allowed devices.
         Computations are performed in a separate thread. The function is not waiting for computations
         to complete. Status ('accepted' or 'rejected') and error message is returned. 'accepted' status
         does not mean that the operation was successful.
         """
-        self._user_group_permissions = user_group_permissions
-        status, err_msg, task_uid, payload = self._start_task(
-            name="Reload Permissions",
-            target=self._generate_lists_of_allowed_plans_and_devices,
-            run_in_background=True,
-        )
-        msg_out = {"status": status, "err_msg": err_msg, "task_uid": task_uid, "payload": payload}
-        return msg_out
-
-    def _command_exec_loop_stop_handler(self):
-        """
-        Initiate stopping the execution loop. Call fails if the worker is running on Python
-        (not IPython kernel).
-        """
         try:
-            success = self._ip_kernel_release()
-            status = "accepted" if success else "rejected"
-            err_msg = "Failed to initiate stopping the execution loop" if not success else ""
+            self._user_group_permissions = user_group_permissions
+            th = threading.Thread(target=self._generate_list_of_allowed_devices, daemon=True)
+            th.start()
+            status, err_msg = "accepted", ""
         except Exception as ex:
             status, err_msg = "rejected", f"Error: {ex}"
 
         return {"status": status, "err_msg": err_msg}
 
-    def _command_interrupt_kernel_handler(self, interrupt_task, interrupt_plan):
+    def _command_interrupt_kernel_handler(self):
         """
-        Initiate stopping the execution loop. Call fails if the worker is running on Python
-        (not IPython kernel).
+        Send an interrupt request to the IPython kernel. Call fails if the worker is running
+        on Python (not IPython kernel).
         """
         logger.debug("Interrupting kernel ...")
         try:
-            status, err_msg = "accepted", ""
-
-            # The same checks are already performed in the manager, but we repeat them here with
-            #   more up-to-date information
-            if not interrupt_plan and self._env_state == EState.EXECUTING_PLAN:
-                raise RuntimeError("Not allowed to interrupt running plan")
-
-            if not interrupt_task and self._env_state == EState.EXECUTING_TASK:
-                raise RuntimeError("Not allowed to interrupt running task")
+            if not self._use_ipython_kernel:
+                raise RuntimeError("The worker is not running an IPython kernel")
 
             msg = self._ip_kernel_client.session.msg("interrupt_request", content={})
             self._ip_kernel_client.control_channel.send(msg)
-
+            status, err_msg = "accepted", ""
         except Exception as ex:
             status, err_msg = "rejected", f"Error: {ex}"
 
@@ -346,39 +304,10 @@ class RunEngineWorker(Process):
 
     def _execute_in_main_thread(self):
         """
-        Run this function to block the main thread. The function is polling
-        `self._execution_queue` and executes the plans that are in the queue.
-        If the queue is empty, then the thread remains idle.
+        Run this function to block the main thread. No plans or tasks are executed by the worker,
+        so the function simply waits until the environment is closed.
         """
-        # This function blocks the main thread
-        try:
-            with self._exec_loop_active_cnd:
-                self._ip_kernel_captured = True
-                self._exec_loop_active = True
-                self._exec_loop_active_cnd.notify_all()
-
-            self._exit_main_loop_event.clear()
-            while True:
-                try:
-                    parameters, plan_exec_option = self._execution_queue.get(block=True, timeout=0.1)
-                    self._execute_plan_or_task(parameters, plan_exec_option)
-                except queue.Empty:
-                    pass
-
-                # Exit the thread if the Event is set (necessary to gracefully close the process)
-                if self._exit_event.is_set() or self._exit_main_loop_event.is_set():
-                    break
-                if (self._env_state == EState.RESERVED) and (self._ip_kernel_reserve_expire_at < ttime.time()):
-                    self._env_state = EState.IDLE
-                    break
-        finally:
-            with self._exec_loop_active_cnd:
-                if not self._use_ipython_kernel:
-                    self._ip_kernel_captured = False
-                self._exec_loop_active = False
-                self._exec_loop_active_cnd.notify_all()
-
-            self._exit_main_loop_event.clear()
+        self._exit_event.wait()
 
     # ------------------------------------------------------------
 
@@ -386,8 +315,7 @@ class RunEngineWorker(Process):
         """
         Operations necessary to prepare for worker startup (before loading)
         """
-        from .plan_monitoring import CallbackRegisterRun
-        from .profile_tools import set_ipython_mode, set_re_worker_active
+        from bluesky_queueserver.manager.profile_tools import set_ipython_mode, set_re_worker_active
 
         self._ip_kernel_is_shut_down_event = threading.Event()  # Used with IPython kernel
 
@@ -396,64 +324,35 @@ class RunEngineWorker(Process):
         set_re_worker_active()
         set_ipython_mode(self._use_ipython_kernel)
 
-        self._completed_tasks_lock = threading.Lock()
-
-        from .plan_monitoring import RunList
-
-        self._active_run_list = RunList()  # Initialization should be done before communication is enabled.
-        self._run_reg_cb = CallbackRegisterRun(run_list=self._active_run_list)
-
         # Class that supports communication over the pipe
         self._comm_to_manager = PipeJsonRpcReceive(conn=self._conn, use_json=False, name="RE Worker-Manager Comm")
 
         self._comm_to_manager.add_method(self._request_state_handler, "request_state")
         self._comm_to_manager.add_method(self._request_ip_connect_info, "request_ip_connect_info")
-        self._comm_to_manager.add_method(self._request_plan_report_handler, "request_plan_report")
-        self._comm_to_manager.add_method(self._request_run_list_handler, "request_run_list")
         self._comm_to_manager.add_method(
             self._request_plans_and_devices_list_handler, "request_plans_and_devices_list"
         )
-        self._comm_to_manager.add_method(self._request_runengine_metadata_handler, "request_runengine_metadata")
-        self._comm_to_manager.add_method(self._request_task_results_handler, "request_task_results")
         self._comm_to_manager.add_method(self._command_close_env_handler, "command_close_env")
         self._comm_to_manager.add_method(self._command_confirm_exit_handler, "command_confirm_exit")
-        self._comm_to_manager.add_method(self._command_run_plan_handler, "command_run_plan")
-        self._comm_to_manager.add_method(self._command_pause_plan_handler, "command_pause_plan")
-        self._comm_to_manager.add_method(self._command_continue_plan_handler, "command_continue_plan")
-        self._comm_to_manager.add_method(self._command_reset_worker_handler, "command_reset_worker")
         self._comm_to_manager.add_method(self._command_permissions_reload_handler, "command_permissions_reload")
-
-        self._comm_to_manager.add_method(self._command_reserve_kernel_handler, "command_reserve_kernel")
-        self._comm_to_manager.add_method(self._command_exec_loop_stop_handler, "command_exec_loop_stop")
         self._comm_to_manager.add_method(self._command_interrupt_kernel_handler, "command_interrupt_kernel")
-
-        self._comm_to_manager.add_method(self._command_load_script, "command_load_script")
-        self._comm_to_manager.add_method(self._command_execute_function, "command_execute_function")
 
         self._comm_to_manager.start()
 
-        self._ip_kernel_captured = False
-        self._exec_loop_active = False
-        self._exec_loop_active_cnd = threading.Condition()
-        self._exit_main_loop_event = threading.Event()
         self._exit_event = threading.Event()
         self._exit_confirmed_event = threading.Event()
-        self._re_report_lock = threading.Lock()
 
         self._allowed_items_lock = threading.Lock()
         self._existing_items_lock = threading.Lock()
 
-        from bluesky.run_engine import get_bluesky_event_loop
-
-        # Setting the default event loop is needed to make the code work with Python 3.8.
-        loop = get_bluesky_event_loop() or asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        self._loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self._loop)
 
     def _worker_startup_code(self):
         """
         Perform startup tasks for the worker.
         """
-        from .profile_tools import global_user_namespace
+        from bluesky_queueserver.manager.profile_tools import global_user_namespace
 
         try:
             startup_dir = self._config_dict.get("startup_dir", None)
@@ -477,24 +376,16 @@ class RunEngineWorker(Process):
                 ignore_invalid_plans=self._config_dict["ignore_invalid_plans"],
                 max_depth=self._config_dict["device_max_depth"],
             )
-            existing_plans, existing_devices, plans_in_nspace, devices_in_nspace = epd
+            _, existing_devices, _, devices_in_nspace = epd
 
-            # self._existing_plans_and_devices_changed = not compare_existing_plans_and_devices(
-            #     existing_plans = existing_plans,
-            #     existing_devices = existing_devices,
-            #     existing_plans_ref = self._existing_plans,
-            #     existing_devices_ref = self._existing_devices,
-            # )
-
-            # Descriptions of existing plans and devices
+            # Descriptions of existing devices
             with self._existing_items_lock:
-                self._existing_plans, self._existing_devices = existing_plans, existing_devices
+                self._existing_devices = existing_devices
 
-            # Dictionaries of references to plans and devices from the namespace
-            self._plans_in_nspace = plans_in_nspace
+            # Dictionary of references to devices from the namespace
             self._devices_in_nspace = devices_in_nspace
 
-            # Always download existing plans and devices when loading the new environment
+            # Always download the list of existing devices when loading the new environment
             self._existing_plans_and_devices_changed = True
 
             logger.info("Startup code was successfully loaded.")
@@ -508,22 +399,14 @@ class RunEngineWorker(Process):
             self._success_startup = False
 
         if self._success_startup:
-            self._generate_lists_of_allowed_plans_and_devices()
+            self._generate_list_of_allowed_devices()
             self._update_existing_pd_file(options=("ENVIRONMENT_OPEN", "ALWAYS"))
 
-            logger.info("Instantiating and configuring Run Engine ...")
-
             try:
-                # Make RE namespace available to the plan code.
+                # Make the namespace available to the code running in the worker.
                 global_user_namespace.set_user_namespace(
                     user_ns=self._re_namespace, use_ipython=self._use_ipython_kernel
                 )
-
-                # Copy reference to Run Engine from the namespace. Set to None if RE does not exist.
-                self._RE = self._re_namespace.get("RE", None)
-                self._setup_waiting_hook()
-
-                self._execution_queue = queue.Queue()
 
                 # If IPython kernel is used, then the environment state should be updated
                 #     once the kernel is 'idle'
@@ -543,7 +426,7 @@ class RunEngineWorker(Process):
         """
         Perform shutdown tasks for the worker.
         """
-        from .profile_tools import clear_ipython_mode, clear_re_worker_active
+        from bluesky_queueserver.manager.profile_tools import clear_ipython_mode, clear_re_worker_active
 
         # If shutdown was not initiated by request from manager, then the manager needs to know this,
         #   since it still needs to send a request to the worker to confirm the orderly exit.
@@ -562,8 +445,6 @@ class RunEngineWorker(Process):
         clear_re_worker_active()
         clear_ipython_mode()
 
-        self._RE = None
-
         self._comm_to_manager.stop()
 
     def _run_loop_python(self):
@@ -575,48 +456,6 @@ class RunEngineWorker(Process):
         else:
             self._exit_event.set()
 
-    def _run_loop_ipython(self):
-        """
-        Run loop (IPython kernel). The loop is blocking IPython kernel main thread while the queue
-        (or other foreground task) is running, 'capturing' the kernel.
-        """
-        self._ip_kernel_reserve_expire_at = ttime.time() + self._ip_kernel_reserve_timeout
-        self._env_state = EState.RESERVED
-        self._execute_in_main_thread()
-
-    def _ip_kernel_capture(self, timeout=0.5):
-        """
-        'Capture' IPython kernel by starting an execution loop. Once the kernel is 'captured', the server
-        may start submitting tasks. Returns True if the execution loop was started and False otherwise.
-        If the loop was not started because of timeout, it may start later, but it will exit quickly
-        without executing any tasks.
-        """
-        if not self._use_ipython_kernel:
-            return True
-        if self._ip_kernel_state != IPKernelState.IDLE:
-            if self._env_state == EState.RESERVED:
-                self._ip_kernel_reserve_expire_at = ttime.time() + self._ip_kernel_reserve_timeout
-                return True
-            else:
-                return False
-
-        start_loop_task = "___ip_execution_loop_start___()"
-        self._ip_kernel_execute_command(command=start_loop_task)
-        with self._exec_loop_active_cnd:
-            success = self._exec_loop_active_cnd.wait_for(lambda: self._exec_loop_active, timeout=timeout)
-        return success
-
-    def _ip_kernel_release(self):
-        """
-        Initiate the release of captured loop (only for IPython kernel).
-        The loop is considered released once the kernel returns to the 'idle' state.
-        """
-        if self._use_ipython_kernel:
-            self._exit_main_loop_event.set()
-            return True
-        else:
-            return False
-
     def _ip_kernel_iopub_monitor_thread(self, output_stream, error_stream):
         while True:
             if self._ip_kernel_monitor_stop:
@@ -626,14 +465,6 @@ class RunEngineWorker(Process):
                 msg = self._ip_kernel_client.get_iopub_msg(timeout=0.5)
                 if msg["header"]["msg_type"] == "status":
                     self._ip_kernel_state = IPKernelState(msg["content"]["execution_state"])
-                    # Set kernel as not captured if the exec loop was stopped and we are
-                    #   waiting for the kernel to become idle.
-                    if (
-                        self._ip_kernel_captured
-                        and not self._exec_loop_active
-                        and self._ip_kernel_state == IPKernelState.IDLE
-                    ):
-                        self._ip_kernel_captured = False
 
                     if (self._env_state == EState.INITIALIZING) and (self._ip_kernel_state == IPKernelState.IDLE):
                         logger.info("IPython kernel is in 'idle' state")
@@ -723,12 +554,6 @@ class RunEngineWorker(Process):
         th = threading.Thread(target=self._ip_kernel_shutdown_thread, daemon=True)
         th.start()
 
-    def _ip_kernel_startup_init(self):
-        with self._exec_loop_active_cnd:
-            self._ip_kernel_captured = True
-            self._exec_loop_active = False  # Loop is not running
-            self._exec_loop_active_cnd.notify_all()
-
     def run(self):
         """
         Overrides the `run()` function of the `multiprocessing.Process` class. Called
@@ -740,6 +565,7 @@ class RunEngineWorker(Process):
 
         logging.basicConfig(level=max(logging.WARNING, self._log_level))
         setup_loggers(name="bluesky_queueserver", log_level=self._log_level)
+        setup_loggers(name="ophyd_as_service", log_level=self._log_level)
 
         self._success_startup = True
         self._env_state = EState.INITIALIZING
@@ -751,9 +577,8 @@ class RunEngineWorker(Process):
         else:
             import socket
 
+            from bluesky_queueserver.manager.utils import generate_random_port
             from ipykernel.kernelapp import IPKernelApp
-
-            from .utils import generate_random_port
 
             connection_file = self._config_dict["ipython_connection_file"]
             connection_dir = self._config_dict["ipython_connection_dir"]
@@ -775,8 +600,6 @@ class RunEngineWorker(Process):
                 # don't need them. Use the default functionality.
                 IPKernelAppCustom = IPKernelApp
 
-            self._re_namespace["___ip_execution_loop_start___"] = self._run_loop_ipython
-            self._re_namespace["___ip_kernel_startup_init___"] = self._ip_kernel_startup_init
             self._ip_kernel_app = IPKernelAppCustom.instance(user_ns=self._re_namespace)
             out_stream, err_stream = sys.stdout, sys.stderr
 
@@ -945,9 +768,6 @@ class RunEngineWorker(Process):
                 cinfo["key"] = cinfo["key"].decode("utf-8")
                 logger.info("IPython kernel connection info:\n %r", ppfl(cinfo))
 
-                th_abandoned_plans = threading.Thread(target=self._monitor_abandoned_plans_thread, daemon=True)
-                th_abandoned_plans.start()
-
             # --------------------------------------------------------------------------
             #               Run startup code outside the IPython kernel1
             if self._success_startup:
@@ -956,8 +776,8 @@ class RunEngineWorker(Process):
 
             if self._success_startup:
                 logger.info("Preparing to start IPython kernel ...")
-                # Execute some useless command in kernel to make it report IDLE state
-                self._ip_kernel_execute_command(command="___ip_kernel_startup_init___()", except_on=False)
+                # The kernel reports the 'idle' state only after it executes a command.
+                self._ip_kernel_execute_command(command="pass", except_on=False)
                 self._ip_kernel_app.start()
 
             self._ip_kernel_is_shut_down_event.set()
