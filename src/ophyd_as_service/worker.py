@@ -15,7 +15,6 @@ from threading import Thread
 from bluesky_queueserver.manager.comms import PipeJsonRpcReceive
 from bluesky_queueserver.manager.logging_setup import PPrintForLogging as ppfl
 from bluesky_queueserver.manager.logging_setup import setup_loggers
-from bluesky_queueserver.manager.output_streaming import setup_console_output_redirection
 from bluesky_queueserver.manager.profile_ops import (
     existing_plans_and_devices_from_nspace,
     load_allowed_plans_and_devices,
@@ -52,6 +51,8 @@ class RunEngineWorker(Process):
     ----------
     conn: multiprocessing.Connection
         One end of bidirectional (input/output) pipe. The other end is used by RE Manager.
+    msg_queue: multiprocessing.Queue
+        Queue used to pass messages from the worker to the process that owns the worker.
     args, kwargs
         `args` and `kwargs` of the `multiprocessing.Process`
     """
@@ -559,10 +560,6 @@ class RunEngineWorker(Process):
         Overrides the `run()` function of the `multiprocessing.Process` class. Called
         by the `start` method.
         """
-        setup_console_output_redirection(msg_queue=self._msg_queue)
-        # No output should be printed directly on the screen
-        sys.__stdout__, sys.__stderr__ = sys.stdout, sys.stderr
-
         logging.basicConfig(level=max(logging.WARNING, self._log_level))
         setup_loggers(name="bluesky_queueserver", log_level=self._log_level)
         setup_loggers(name="ophyd_as_service", log_level=self._log_level)

@@ -128,6 +128,12 @@ def build_app(server_settings=None):
         # Stash these to cancel this on shutdown.
         app.state.tasks = []
 
+        server_config = (server_settings or {}).get("server_configuration", {}) or {}
+        SR.setup_environment_manager(
+            worker_config=server_config.get("worker_configuration", {}),
+            user_group_permissions_path=server_config.get("user_group_permissions_path"),
+        )
+
         # The following message is used in unit tests to detect when HTTP server is started.
         #   Unit tests need to be modified if this message is modified.
         logger.info("Ophyd-as-Service server started successfully")
@@ -139,7 +145,14 @@ def build_app(server_settings=None):
         This change ensures that the application shuts down and cleans up resources even if there is
         a problem, without silencing the errors.
         """
+        # Leaving the worker process running would orphan it.
+        if SR.environment_manager.is_running:
+            success, msg = await SR.environment_manager.close_environment()
+            if not success:
+                logger.error("Failed to close the RE Worker environment: %s", msg)
+
         for task in getattr(app.state, "tasks", []):
             task.cancel()
+
 
     return app
