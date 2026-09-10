@@ -20,9 +20,9 @@ def app_factory():
     example) where only a module and instance or factory can be specified.
     """
     logging.basicConfig(level=logging.WARNING)
-    logging.getLogger("ophyd_as_service").setLevel("INFO")
+    logging.getLogger("ophyd_service").setLevel("INFO")
 
-    config_path = os.getenv("OPHYD_AS_SERVICE_SERVER_CONFIG", None)
+    config_path = os.getenv("OPHYD_SERVICE_SERVER_CONFIG", None)
 
     try:
         parsed_config = parse_configs(config_path) if config_path else {}

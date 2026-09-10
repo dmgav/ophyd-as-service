@@ -7,7 +7,7 @@ import pydantic
 from fastapi import APIRouter, Depends, File, Form, Request, Security, UploadFile, WebSocket, WebSocketDisconnect
 from packaging import version
 
-from ophyd_as_service import __version__
+from ophyd_service import __version__
 
 from ..resources import SERVER_RESOURCES as SR
 
@@ -30,7 +30,7 @@ async def ping_handler(payload: dict = {}):
     """
     May be called to get some response from the server. Currently returns status of RE Manager.
     """
-    msg = {"success": True, "msg": f"Ophyd-As-Service: v.{__version__}"}
+    msg = {"success": True, "msg": f"Ophyd-Service: v.{__version__}"}
     return msg
 
 

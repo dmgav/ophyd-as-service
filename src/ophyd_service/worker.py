@@ -562,7 +562,7 @@ class RunEngineWorker(Process):
         """
         logging.basicConfig(level=max(logging.WARNING, self._log_level))
         setup_loggers(name="bluesky_queueserver", log_level=self._log_level)
-        setup_loggers(name="ophyd_as_service", log_level=self._log_level)
+        setup_loggers(name="ophyd_service", log_level=self._log_level)
 
         self._success_startup = True
         self._env_state = EState.INITIALIZING

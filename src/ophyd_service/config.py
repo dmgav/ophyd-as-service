@@ -56,14 +56,14 @@ def construct_build_app_kwargs(
                 auth_spec[k] = timedelta(seconds=auth_spec[k])
 
         api_access_spec = config.get("api_access", {}) or {}
-        import_path = api_access_spec.get("policy", "bluesky_httpserver.authorization:BasicAPIAccessControl")
+        import_path = api_access_spec.get("policy", "ophyd_service.authorization:BasicAPIAccessControl")
         api_access_manager_class = import_object(import_path, accept_live_object=True)
         api_access_manager = api_access_manager_class(**api_access_spec.get("args", {}))
         api_access_spec["manager_object"] = api_access_manager
 
         resource_access_spec = config.get("resource_access", {}) or {}
         import_path = resource_access_spec.get(
-            "policy", "bluesky_httpserver.authorization:DefaultResourceAccessControl"
+            "policy", "ophyd_service.authorization:DefaultResourceAccessControl"
         )
         resource_access_manager_class = import_object(import_path, accept_live_object=True)
         resouce_access_manager = resource_access_manager_class(**resource_access_spec.get("args", {}))
@@ -90,9 +90,9 @@ def construct_build_app_kwargs(
         server_settings["qserver_zmq_configuration"] = config.get("qserver_zmq_configuration", {})
         server_settings["server_configuration"] = config.get("server_configuration", {})
     return {
-        # "authentication": auth_spec,
-        # "api_access": api_access_spec,
-        # "resource_access": resource_access_spec,
+        "authentication": auth_spec,
+        "api_access": api_access_spec,
+        "resource_access": resource_access_spec,
         "server_settings": server_settings,
     }
 
@@ -102,7 +102,8 @@ def merge(configs):
 
     # These variables are used to produce error messages that point
     # to the relevant config file(s).
-    qserver_zmq_config_source = None
+    startup_config_source = None
+    worker_config_source = None
     server_config_source = None
     authentication_config_source = None
     uvicorn_config_source = None
@@ -114,6 +115,24 @@ def merge(configs):
 
     for filepath, config in configs.items():
         allow_origins.extend(config.get("allow_origins", []))
+        if "startup" in config:
+            if "startup" in merged:
+                raise ConfigError(
+                    "'startup' can only be specified in one file. "
+                    f"It was found in both {startup_config_source} and "
+                    f"{filepath}"
+                )
+            startup_config_source = filepath
+            merged["startup"] = config["startup"]
+        if "worker" in config:
+            if "worker" in merged:
+                raise ConfigError(
+                    "'worker' can only be specified in one file. "
+                    f"It was found in both {worker_config_source} and "
+                    f"{filepath}"
+                )
+            worker_config_source = filepath
+            merged["worker"] = config["worker"]
         if "server_configuration" in config:
             if "server_configuration" in merged:
                 raise ConfigError(

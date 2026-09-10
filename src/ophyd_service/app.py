@@ -106,7 +106,7 @@ def build_app(server_settings=None):
 
     # Include custom routers
     router_names = []
-    router_names_str = os.getenv("OPHYD_AS_SERVICE_CUSTOM_ROUTERS", None)
+    router_names_str = os.getenv("OPHYD_SERVICE_CUSTOM_ROUTERS", None)
     if "custom_routers" in server_settings["server_configuration"]:
         router_names = server_settings["server_configuration"]["custom_routers"]
         logger.info("Custom routers are specified in the config file: %s", router_names)
@@ -136,7 +136,7 @@ def build_app(server_settings=None):
 
         # The following message is used in unit tests to detect when HTTP server is started.
         #   Unit tests need to be modified if this message is modified.
-        logger.info("Ophyd-as-Service server started successfully")
+        logger.info("Ophyd-Service server started successfully")
 
     @app.on_event("shutdown")
     async def shutdown_event():
