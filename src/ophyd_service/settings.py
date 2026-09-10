@@ -18,37 +18,37 @@ DatabaseSettings = collections.namedtuple("DatabaseSettings", "uri pool_size poo
 
 class Settings(BaseSettings):
     tree: Any = None
-    allow_anonymous_access: bool = bool(int(os.getenv("QSERVER_HTTP_SERVER_ALLOW_ANONYMOUS_ACCESS", False)))
+    allow_anonymous_access: bool = bool(int(os.getenv("OPHYD_SERVICE_ALLOW_ANONYMOUS_ACCESS", False)))
     allow_origins: list[str] = [
-        item for item in os.getenv("QSERVER_HTTP_SERVER_ALLOW_ORIGINS", "").split() if item
+        item for item in os.getenv("OPHYD_SERVICE_ALLOW_ORIGINS", "").split() if item
     ]
     authentication_provider_names: list[str] = []  # The list of authentication provider names
     authenticator: Any = None
     # These 'single user' settings are only applicable if authenticator is None.
-    single_user_api_key: str = os.getenv("QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY", secrets.token_hex(32))
-    single_user_api_key_generated: bool = "QSERVER_HTTP_SERVER_SINGLE_USER_API_KEY" not in os.environ
-    # The QSERVER_HTTP_SERVER_SERVER_SECRET_KEYS may be a single key or a ;-separated list of
+    single_user_api_key: str = os.getenv("OPHYD_SERVICE_SINGLE_USER_API_KEY", secrets.token_hex(32))
+    single_user_api_key_generated: bool = "OPHYD_SERVICE_SINGLE_USER_API_KEY" not in os.environ
+    # The OPHYD_SERVICE_SERVER_SECRET_KEYS may be a single key or a ;-separated list of
     # keys to support key rotation. The first key will be used for encryption. Each
     # key will be tried in turn for decryption.
-    secret_keys: list[str] = os.getenv("QSERVER_HTTP_SERVER_SERVER_SECRET_KEYS", secrets.token_hex(32)).split(";")
+    secret_keys: list[str] = os.getenv("OPHYD_SERVICE_SERVER_SECRET_KEYS", secrets.token_hex(32)).split(";")
     access_token_max_age: timedelta = timedelta(
-        seconds=int(os.getenv("QSERVER_HTTP_SERVER_ACCESS_TOKEN_MAX_AGE", 15 * 60))  # 15 minutes
+        seconds=int(os.getenv("OPHYD_SERVICE_ACCESS_TOKEN_MAX_AGE", 15 * 60))  # 15 minutes
     )
     refresh_token_max_age: timedelta = timedelta(
-        seconds=int(os.getenv("QSERVER_HTTP_SERVER_REFRESH_TOKEN_MAX_AGE", 7 * 24 * 60 * 60))  # 7 days
+        seconds=int(os.getenv("OPHYD_SERVICE_REFRESH_TOKEN_MAX_AGE", 7 * 24 * 60 * 60))  # 7 days
     )
     session_max_age: timedelta | None = timedelta(
-        seconds=int(os.getenv("QSERVER_HTTP_SERVER_SESSION_MAX_AGE", 365 * 24 * 60 * 60))  # 365 days
+        seconds=int(os.getenv("OPHYD_SERVICE_SESSION_MAX_AGE", 365 * 24 * 60 * 60))  # 365 days
     )
     # Put a fairly low limit on the maximum size of one chunk, keeping in mind
     # that data should generally be chunked. When we implement async responses,
     # we can raise this global limit.
     response_bytesize_limit: int = int(
-        os.getenv("QSERVER_HTTP_SERVER_RESPONSE_BYTESIZE_LIMIT", 300_000_000)
+        os.getenv("OPHYD_SERVICE_RESPONSE_BYTESIZE_LIMIT", 300_000_000)
     )  # 300 MB
-    database_uri: str | None = os.getenv("QSERVER_HTTP_SERVER_DATABASE_URI")
-    database_pool_size: int | None = int(os.getenv("QSERVER_HTTP_SERVER_DATABASE_POOL_SIZE", 5))
-    database_pool_pre_ping: bool | None = bool(int(os.getenv("QSERVER_HTTP_SERVER_DATABASE_POOL_PRE_PING", 1)))
+    database_uri: str | None = os.getenv("OPHYD_SERVICE_DATABASE_URI")
+    database_pool_size: int | None = int(os.getenv("OPHYD_SERVICE_DATABASE_POOL_SIZE", 5))
+    database_pool_pre_ping: bool | None = bool(int(os.getenv("OPHYD_SERVICE_DATABASE_POOL_PRE_PING", 1)))
 
     @property
     def database_settings(self):

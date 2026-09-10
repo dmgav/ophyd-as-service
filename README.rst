@@ -12,4 +12,4 @@ Starting the server::
 
 Starting the server with config file::
 
-    OPHYD_SERVICE_SERVER_CONFIG=config.yml uvicorn --host localhost --port 60620 ophyd_service.server:app
+    OPHYD_SERVICE_CONFIG=config.yml uvicorn --host localhost --port 60620 ophyd_service.server:app

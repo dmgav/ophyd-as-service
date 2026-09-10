@@ -9,6 +9,7 @@ from packaging import version
 
 from ophyd_service import __version__
 
+from ..authentication import get_current_principal
 from ..resources import SERVER_RESOURCES as SR
 
 # if version.parse(pydantic.__version__) < version.parse("2.0.0"):
@@ -26,7 +27,9 @@ router = APIRouter(prefix="/api")
 
 @router.get("/")
 @router.get("/ping")
-async def ping_handler(payload: dict = {}):
+async def ping_handler(
+    payload: dict = {}, principal=Security(get_current_principal, scopes=["read:status"])
+):
     """
     May be called to get some response from the server. Currently returns status of RE Manager.
     """
@@ -35,7 +38,9 @@ async def ping_handler(payload: dict = {}):
 
 
 @router.post("/environment/open")
-async def environment_open_handler():
+async def environment_open_handler(
+    principal=Security(get_current_principal, scopes=["write:manager:control"])
+):
     """
     Open the RE Worker environment: start the worker process and load the startup code.
     """
@@ -44,7 +49,9 @@ async def environment_open_handler():
 
 
 @router.post("/environment/close")
-async def environment_close_handler():
+async def environment_close_handler(
+    principal=Security(get_current_principal, scopes=["write:manager:control"])
+):
     """
     Close the RE Worker environment. The worker process is killed if it fails to exit
     in an orderly way before the timeout expires.

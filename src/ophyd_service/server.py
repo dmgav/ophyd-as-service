@@ -13,7 +13,7 @@ def app_factory():
     Return an ASGI app instance.
 
     Use a configuration file at the path specified by the environment variable
-    QSERVER_HTTP_SERVER_CONFIG. If the env. variable is not set, then do not load
+    OPHYD_SERVICE_CONFIG. If the env. variable is not set, then do not load
     configuration.
 
     This is intended to be used for horizontal deployment (using gunicorn, for
@@ -22,7 +22,7 @@ def app_factory():
     logging.basicConfig(level=logging.WARNING)
     logging.getLogger("ophyd_service").setLevel("INFO")
 
-    config_path = os.getenv("OPHYD_SERVICE_SERVER_CONFIG", None)
+    config_path = os.getenv("OPHYD_SERVICE_CONFIG", None)
 
     try:
         parsed_config = parse_configs(config_path) if config_path else {}
