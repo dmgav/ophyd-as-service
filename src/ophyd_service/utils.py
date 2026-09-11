@@ -162,19 +162,19 @@ def prepend_to_sys_path(*paths):
 
 def get_authenticators():
     raise NotImplementedError(
-        "This should be overridden via dependency_overrides. See bluesky_httpserver.server.app.build_app()."
+        "This should be overridden via dependency_overrides. See ophyd_service.server.app.build_app()."
     )
 
 
 def get_resource_access_manager():
     raise NotImplementedError(
-        "This should be overridden via dependency_overrides. See bluesky_httpserver.server.app.build_app()."
+        "This should be overridden via dependency_overrides. See ophyd_service.server.app.build_app()."
     )
 
 
 def get_api_access_manager():
     raise NotImplementedError(
-        "This should be overridden via dependency_overrides. See bluesky_httpserver.server.app.build_app()."
+        "This should be overridden via dependency_overrides. See ophyd_service.server.app.build_app()."
     )
 
 
@@ -207,9 +207,9 @@ def safe_json_dump(content):
     return orjson.dumps(content, option=orjson.OPT_SERIALIZE_NUMPY, default=default)
 
 
-API_KEY_COOKIE_NAME = "bluesky_httpserver_api_key"
+API_KEY_COOKIE_NAME = "ophyd_service_api_key"
 API_KEY_QUERY_PARAMETER = "api_key"
-CSRF_COOKIE_NAME = "bluesky_httpserver_csrf"
+CSRF_COOKIE_NAME = "ophyd_service_csrf"
 
 
 @contextlib.contextmanager

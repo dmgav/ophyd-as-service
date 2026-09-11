@@ -79,10 +79,12 @@ ignore_missing_imports = true # Ignore missing stubs in imported modules
 [tool.pytest.ini_options]
 # Run pytest with all our checkers, and don't spam us with massive tracebacks on error
 # Don't collect the interactive directory which is intended for manual execution
+# Alembic's env.py is only importable while running under `alembic`, so keep it out of collection
 addopts = """
     --tb=native -vv 
     --doctest-modules 
     --doctest-glob="*.rst" 
+    --ignore=src/ophyd_service/database/migrations 
     """
 # https://iscinumpy.gitlab.io/post/bound-version-constraints/#watch-for-warnings
 filterwarnings = [

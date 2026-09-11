@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, LargeBinary, Unicode
 from sqlalchemy.sql import func
 
-from bluesky_httpserver.database.orm import UUID, JSONList, PrincipalType
+from ophyd_service.database.orm import UUID, JSONList, PrincipalType
 
 # revision identifiers, used by Alembic.
 revision = "481830dd6c11"

@@ -42,7 +42,7 @@ class DefaultResourceAccessControl:
     .. code-block::
 
         resource_access:
-          policy: bluesky_httpserver.authorization:DefaultResourceAccessControl
+          policy: ophyd_service.authorization:DefaultResourceAccessControl
           args:
             default_group: test_user
     """

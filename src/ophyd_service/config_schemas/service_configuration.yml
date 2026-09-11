@@ -56,7 +56,7 @@ properties:
               description: |
                 Type of Authenticator to use.
 
-                These are typically from the bluesky_httpserver.authenticators module,
+                These are typically from the ophyd_service.authenticators module,
                 though user-defined ones may be used as well.
 
                 This is given as an import path. In an import path, packages/modules
@@ -65,7 +65,7 @@ properties:
                 Example:
 
                 ```yaml
-                authenticator: bluesky_httpserver.authenticators:DummyAuthenticator
+                authenticator: ophyd_service.authenticators:DummyAuthenticator
                 ```
               args:
                 type: object
@@ -76,7 +76,7 @@ properties:
                   Example:
 
                   ```yaml
-                  authenticator: bluesky_httpserver.authenticators:PAMAuthenticator
+                  authenticator: ophyd_service.authenticators:PAMAuthenticator
                   args:
                     service: "custom_service"
                   ```
@@ -163,7 +163,7 @@ properties:
           and keys. (When it is used without authentication providers, no database is used.)
 
           If Bluesky HTTP Server is configured with authentication providers above but
-          a database URI is not specified, `sqlite:///./bluesky-httpserver.sqlite`
+          a database URI is not specified, `sqlite:///./ophyd-service.sqlite`
           (i.e. a SQLite database in the current working directory) will be used.
 
           Bluesky HTTP Server officially supports PostgreSQL and SQLite, but any database

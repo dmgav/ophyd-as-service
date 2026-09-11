@@ -130,7 +130,7 @@ class BasicAPIAccessControl:
     the ``user`` role and creates a new ``test_role``::
 
       api_access:
-        policy: bluesky_httpserver.authorization:BasicAPIAccessControl
+        policy: ophyd_service.authorization:BasicAPIAccessControl
         args:
           roles:
             user:
@@ -392,13 +392,13 @@ class DictionaryAPIAccessControl(BasicAPIAccessControl):
 
         # No users are allowed to access any API.
         api_access:
-          policy: bluesky_httpserver.authorization:DictionaryAPIAccessControl
+          policy: ophyd_service.authorization:DictionaryAPIAccessControl
           args:
               users: None
 
         # User 'bob' is defined, but he is not allowed to use any API.
         api_access:
-          policy: bluesky_httpserver.authorization:DictionaryAPIAccessControl
+          policy: ophyd_service.authorization:DictionaryAPIAccessControl
           args:
             users:
               bob: None
@@ -406,7 +406,7 @@ class DictionaryAPIAccessControl(BasicAPIAccessControl):
         # User 'bob' is assigned to 'admin' and 'expert' groups, 'jdoe' is assigned to the 'advanced' group.
         # Note: a single role may be represented as a list or a string.
         api_access:
-          policy: bluesky_httpserver.authorization:DictionaryAPIAccessControl
+          policy: ophyd_service.authorization:DictionaryAPIAccessControl
           args:
             users:
               bob:

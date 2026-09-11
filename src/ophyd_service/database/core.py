@@ -177,9 +177,9 @@ def purge_expired(engine, cls):
     """
     Remove expired entries.
 
-    Return reference to cls, supporting usage like
+    Return reference to cls, supporting usage like::
 
-    >>> db.query(purge_expired(engine, orm.APIKey))
+        db.query(purge_expired(engine, orm.APIKey))
     """
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     db = SessionLocal()
@@ -218,8 +218,8 @@ def get_or_create_principal(db, identity_provider, id):
     :func:`create_session`, this helper only touches the Principal/Identity
     tables — it never creates a Session row.  It is intended for principals
     that authenticate with a token minted by an external OIDC provider (i.e.
-    :class:`bluesky_httpserver.authenticators.ProxiedOIDCAuthenticator`
-    subclasses) where the JWT itself is authoritative and no bluesky-httpserver
+    :class:`ophyd_service.authenticators.ProxiedOIDCAuthenticator`
+    subclasses) where the JWT itself is authoritative and no ophyd-service
     session lifetime is required.
 
     On successful lookup the matching ``Identity.latest_login`` is updated to

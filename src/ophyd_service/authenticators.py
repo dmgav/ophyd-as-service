@@ -836,7 +836,7 @@ class LDAPAuthenticator(InternalAuthenticator):
 
     .. code-block::
 
-        from bluesky_httpserver.authenticators import LDAPAuthenticator
+        from ophyd_service.authenticators import LDAPAuthenticator
         authenticator = LDAPAuthenticator(
             "localhost", 1389, bind_dn_template="cn={username},ou=users,dc=example,dc=org", use_tls=False
         )
@@ -854,7 +854,7 @@ class LDAPAuthenticator(InternalAuthenticator):
         authentication:
             providers:
                 - provider: ldap_local
-                authenticator: bluesky_httpserver.authenticators:LDAPAuthenticator
+                authenticator: ophyd_service.authenticators:LDAPAuthenticator
                 args:
                     server_address: localhost
                     server_port: 1389
