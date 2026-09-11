@@ -19,9 +19,7 @@ DatabaseSettings = collections.namedtuple("DatabaseSettings", "uri pool_size poo
 class Settings(BaseSettings):
     tree: Any = None
     allow_anonymous_access: bool = bool(int(os.getenv("OPHYD_SERVICE_ALLOW_ANONYMOUS_ACCESS", False)))
-    allow_origins: list[str] = [
-        item for item in os.getenv("OPHYD_SERVICE_ALLOW_ORIGINS", "").split() if item
-    ]
+    allow_origins: list[str] = [item for item in os.getenv("OPHYD_SERVICE_ALLOW_ORIGINS", "").split() if item]
     authentication_provider_names: list[str] = []  # The list of authentication provider names
     authenticator: Any = None
     # These 'single user' settings are only applicable if authenticator is None.
@@ -43,9 +41,7 @@ class Settings(BaseSettings):
     # Put a fairly low limit on the maximum size of one chunk, keeping in mind
     # that data should generally be chunked. When we implement async responses,
     # we can raise this global limit.
-    response_bytesize_limit: int = int(
-        os.getenv("OPHYD_SERVICE_RESPONSE_BYTESIZE_LIMIT", 300_000_000)
-    )  # 300 MB
+    response_bytesize_limit: int = int(os.getenv("OPHYD_SERVICE_RESPONSE_BYTESIZE_LIMIT", 300_000_000))  # 300 MB
     database_uri: str | None = os.getenv("OPHYD_SERVICE_DATABASE_URI")
     database_pool_size: int | None = int(os.getenv("OPHYD_SERVICE_DATABASE_POOL_SIZE", 5))
     database_pool_pre_ping: bool | None = bool(int(os.getenv("OPHYD_SERVICE_DATABASE_POOL_PRE_PING", 1)))
