@@ -13,8 +13,6 @@ class _ServerResources:
 
     @property
     def environment_manager(self):
-        if self._environment_manager is None:
-            self._environment_manager = EnvironmentManager()
         return self._environment_manager
 
     def set_custom_code_modules(self, custom_code_modules):

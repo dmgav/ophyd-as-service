@@ -273,10 +273,11 @@ def build_app(authentication=None, api_access=None, resource_access=None, server
 
             app.state.tasks.append(asyncio.create_task(purge_expired_sessions_and_api_keys()))
 
-        server_config = (server_settings or {}).get("server_configuration", {}) or {}
+        # server_config = (server_settings or {}).get("server_configuration", {}) or {}
+        worker_config = (server_settings or {}).get("worker_configuration", {}) or {}
         SR.setup_environment_manager(
-            worker_config=server_config.get("worker_configuration", {}),
-            user_group_permissions_path=server_config.get("user_group_permissions_path"),
+            worker_config=worker_config,
+            user_group_permissions_path=worker_config.get("user_group_permissions_path"),
         )
 
         # The following message is used in unit tests to detect when HTTP server is started.

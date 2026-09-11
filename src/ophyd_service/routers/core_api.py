@@ -30,6 +30,15 @@ async def ping_handler(payload: dict = {}, principal=Security(get_current_princi
     return msg
 
 
+@router.get("/device/{device_name:path}")
+async def device_name_handler(device_name: str, principal=Security(get_current_principal, scopes=["read:status"])):
+    """
+    Return the name of the device. The name may contain slashes.
+    """
+    logger.info("Device name: %s", device_name)
+    return {"success": True, "msg": "", "device_name": device_name}
+
+
 @router.post("/environment/open")
 async def environment_open_handler(principal=Security(get_current_principal, scopes=["write:manager:control"])):
     """

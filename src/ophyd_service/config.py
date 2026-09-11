@@ -89,6 +89,7 @@ def construct_build_app_kwargs(
         server_settings["metrics"] = metrics
         server_settings["qserver_zmq_configuration"] = config.get("qserver_zmq_configuration", {})
         server_settings["server_configuration"] = config.get("server_configuration", {})
+        server_settings["worker_configuration"] = config.get("worker_configuration", {})
     return {
         "authentication": auth_spec,
         "api_access": api_access_spec,
@@ -102,7 +103,6 @@ def merge(configs):
 
     # These variables are used to produce error messages that point
     # to the relevant config file(s).
-    startup_config_source = None
     worker_config_source = None
     server_config_source = None
     authentication_config_source = None
@@ -115,24 +115,15 @@ def merge(configs):
 
     for filepath, config in configs.items():
         allow_origins.extend(config.get("allow_origins", []))
-        if "startup" in config:
-            if "startup" in merged:
+        if "worker_configuration" in config:
+            if "worker_configuration" in merged:
                 raise ConfigError(
-                    "'startup' can only be specified in one file. "
-                    f"It was found in both {startup_config_source} and "
-                    f"{filepath}"
-                )
-            startup_config_source = filepath
-            merged["startup"] = config["startup"]
-        if "worker" in config:
-            if "worker" in merged:
-                raise ConfigError(
-                    "'worker' can only be specified in one file. "
+                    "'worker_configuration' can only be specified in one file. "
                     f"It was found in both {worker_config_source} and "
                     f"{filepath}"
                 )
             worker_config_source = filepath
-            merged["worker"] = config["worker"]
+            merged["worker_configuration"] = config["worker_configuration"]
         if "server_configuration" in config:
             if "server_configuration" in merged:
                 raise ConfigError(
