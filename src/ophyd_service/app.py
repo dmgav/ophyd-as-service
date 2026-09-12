@@ -275,10 +275,7 @@ def build_app(authentication=None, api_access=None, resource_access=None, server
 
         # server_config = (server_settings or {}).get("server_configuration", {}) or {}
         worker_config = (server_settings or {}).get("worker_configuration", {}) or {}
-        SR.setup_environment_manager(
-            worker_config=worker_config,
-            user_group_permissions_path=worker_config.get("user_group_permissions_path"),
-        )
+        SR.setup_environment_manager(worker_config=worker_config)
 
         # The following message is used in unit tests to detect when HTTP server is started.
         #   Unit tests need to be modified if this message is modified.

@@ -1,4 +1,4 @@
-from .environment import EnvironmentManager
+from .manager.manager import EnvironmentManager
 
 
 class _ServerResources:
