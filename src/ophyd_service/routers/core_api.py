@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Security
+from fastapi import APIRouter, Security, WebSocket, WebSocketDisconnect
 
 from ophyd_service import __version__
 
@@ -56,3 +56,21 @@ async def environment_close_handler(principal=Security(get_current_principal, sc
     """
     success, msg = await SR.environment_manager.close_environment()
     return {"success": success, "msg": msg}
+
+
+@router.websocket("/status")
+async def status_websocket_handler(websocket: WebSocket):
+    """
+    Stream the status messages published by the environment manager. Only the messages
+    published while the connection is open are sent to the client.
+    """
+    await websocket.accept()
+    with SR.environment_manager.subscribe_status() as queue:
+        try:
+            while True:
+                await websocket.send_json(await queue.get())
+        except WebSocketDisconnect:
+            logger.debug("The client disconnected from the status websocket.")
+        except RuntimeError as ex:
+            # Raised if the connection is closed while the message is sent.
+            logger.debug("The status websocket was closed: %s", ex)

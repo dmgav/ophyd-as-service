@@ -289,10 +289,7 @@ def build_app(authentication=None, api_access=None, resource_access=None, server
         a problem, without silencing the errors.
         """
         # Leaving the worker process running would orphan it.
-        if SR.environment_manager.is_running:
-            success, msg = await SR.environment_manager.close_environment()
-            if not success:
-                logger.error("Failed to close the RE Worker environment: %s", msg)
+        await SR.environment_manager.stop()
 
         for task in getattr(app.state, "tasks", []):
             task.cancel()
