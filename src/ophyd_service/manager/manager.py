@@ -178,7 +178,6 @@ class EnvironmentManager:
 
                 await asyncio.sleep(0.2)
 
-
         async with self._lock:
             if (self._state != EnvState.CLOSED) or self.is_running:
                 return False, "RE Worker environment already exists."
@@ -213,7 +212,6 @@ class EnvironmentManager:
                 self._state = EnvState.CLOSED
 
             return success, err_msg
-
 
     # ------------------------------------------------------------
     #                       Close environment
@@ -309,7 +307,6 @@ class EnvironmentManager:
             self._state = EnvState.CLOSED
             return success, err_msg
 
-
     # ------------------------------------------------------------
 
     async def _request_worker_state(self):
@@ -318,5 +315,3 @@ class EnvironmentManager:
         except Exception as ex:
             logger.debug("Failed to load the worker state: %s", ex)
             return None
-
-
